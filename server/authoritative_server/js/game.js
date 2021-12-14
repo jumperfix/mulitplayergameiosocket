@@ -2,10 +2,7 @@ const players = {};
 const stateMachinesarr = {};
 const playerObject = {};
 const hitboxes = {};
-//const hitboxteam1 = {};
-//const hitboxteam2 = {};
-//const playerObjectteam1 = {};
-//const playerObjectteam2 = {};
+
 
 const config = {
   type: Phaser.HEADLESS,
@@ -16,7 +13,7 @@ const config = {
   physics: {
       default: 'matter',
       matter:{
-        gravity: {y: 0.1},
+        gravity: {y: 0.5},
         //gravity: {y: 0},
         debug: true
       }
@@ -49,6 +46,11 @@ function preload() {
       frameHeight: 48,
       spacing: 18
     });
+    this.load.spritesheet("champsoc_idle","assets/spritesheets/Idle.png",{
+      frameWidth: 17,
+      frameHeight: 34,
+      spacing: 25
+    });
 
 
 
@@ -78,7 +80,7 @@ function create() {
   this.hb1Category = this.matter.world.nextCategory();
   this.hb2Category = this.matter.world.nextCategory();
 
-  this.matter.world.setBounds(0, 0, 1080, 720);
+  //this.matter.world.setBounds(0, 0, 1080, 720);
   const self = this;
   this.players = this.add.group();
   this.npc = this.matter.add.sprite(100, 100, 'player1').setScale(1).setFixedRotation();
@@ -98,34 +100,6 @@ function create() {
         //dash: new DashState(),
     }, [self, self.npc,self.npc.input]);
 
-    //var stateMachineplayer2 = new StateMachine('idle', {
-    //      idle: new IdleState(),
-    //      move: new MoveState(),
-    //      //attack: new AttackState(),
-    //      //hurt: new HurtState(),
-    //      //swing: new SwingState(),
-    //      //dash: new DashState(),
-    //  }, [self, self.npc,self.npc.input]);
-    //  var stateMachineplayer3 = new StateMachine('idle', {
-    //        idle: new IdleState(),
-    //        move: new MoveState(),
-    //        //attack: new AttackState(),
-    //        //hurt: new HurtState(),
-    //        //swing: new SwingState(),
-    //        //dash: new DashState(),
-    //    }, [self, self.npc,self.npc.input]);
-  //stateMachinesarr[1] = stateMachineplayer2;
-  //stateMachinesarr[2] = stateMachineplayer3;
-  //stateMachinesarr[1].step();
-  //var testmachine = stateMachinesarr[1];
-  //testmachine.step();
-
-  //stateMachinesarr.forEach(function (e) {
-  //  e.step();
-  //});
-  //this.background = this.add.tileSprite(0,0,config.width,config.height, "background");
-  //this.background.setOrigin(0,0);
-
   io.on('connection', function (socket) {
     console.log('a user connected');
     // create a new player and add it to our players object
@@ -134,12 +108,14 @@ function create() {
       x: Math.floor(Math.random() * 700) + 50,
       y: Math.floor(Math.random() * 500) + 50,
       playerId: socket.id,
-      //team: (Math.floor(Math.random() * 2) == 0) ? 'red' : 'blue',
       input: {
         left: false,
         right: false,
         up: false,
-        space: false
+        down: false,
+        space: false,
+        smash: false,
+        dodge: false
       },
       state: 'idle',
       xflipped: false,
@@ -151,17 +127,20 @@ function create() {
     stateMachinesarr[socket.id] = new StateMachine('idle', {
           idle: new IdleState(),
           move: new MoveState(),
-          attack: new AttackState(),
+          attack_hor: new AttackHorState(),
+          attack_up: new AttackUpState(),
+          attack_down: new AttackDownState(),
+          smash_hor: new SmashHorState(),
+          smash_up: new SmashUpState(),
+          smash_down: new SmashDownState(),
           hurt: new HurtState(),
-          //swing: new SwingState(),
-          //dash: new DashState(),
+          dodge: new DodgeState(),
+          respawn: new RespawnState()
         }, [self, players[socket.id],playerObject[socket.id]]);
     // send the players object to the new player
     socket.emit('currentPlayers', players);
     // update all other players of the new player
     socket.broadcast.emit('newPlayer', players[socket.id]);
-    // send the star object to the new player
-    //socket.emit('starLocation', { x: self.star.x, y: self.star.y });
     // send the current scores
     socket.emit('updateScore', self.scores);
     socket.on('disconnect', function () {
@@ -177,14 +156,6 @@ function create() {
     socket.on('playerInput', function (inputData) {
       handlePlayerInput(self, socket.id, inputData);
     });
-    //self.stateMachineplayer1 = new StateMachine('idle', {
-    //      idle: new IdleState(),
-    //      move: new MoveState(),
-    //      //attack: new AttackState(),
-    //      //hurt: new HurtState(),
-    //      //swing: new SwingState(),
-    //      //dash: new DashState(),
-    //  }, [self, player,players[player.playerId].input]);
   });
 
 
@@ -204,35 +175,20 @@ function create() {
     var groundtile = this.add.tileSprite(0,618,2*config.width,50, "groundblock");
     this.ground = this.matter.add.gameObject(groundtile,{ isStatic: true,label:"ground"});
     this.platforms.add(this.ground);
-    //this.groundtile = this.matter.add.rectangle(0,618,2*config.width,50,{ isStatic: true});
-    //this.platforms.add(groundtile);
 
     var woodplatform1 = this.add.tileSprite(0,400,10*50,50, "woodblock");
     this.woodplatform1 = this.matter.add.gameObject(woodplatform1,{ isStatic: true, label:"woodplatform1"});
     this.platforms.add(this.woodplatform1);
-    //this.woodplatform1 = this.matter.add.rectangle(0,400,10*50,50,{ isStatic: true});
-    //this.platforms.add(this.woodplatform1);
 
     var woodplatform2 = this.add.tileSprite(400,200,5*50,50, "woodblock");
     this.woodplatform2 = this.matter.add.gameObject(woodplatform2,{ isStatic: true , label:"woodplatform2"});
     this.platforms.add(this.woodplatform2);
-    //this.woodplatform2 = this.matter.add.rectangle(400,200,5*50,50,{ isStatic: true});
-    //this.platforms.add(this.woodplatform2);
 
 
     //set Collisions
     this.ground.setCollisionCategory(this.staticCategory);
     this.woodplatform1.setCollisionCategory(this.staticCategory);
     this.woodplatform2.setCollisionCategory(this.staticCategory);
-
-    //this.player1.setCollisionCategory(this.heroCategory);
-    //this.player2.setCollisionCategory(this.heroCategory);
-    //this.player1.setCollidesWith([this.staticCategory]);
-    //this.player2.setCollidesWith([this.staticCategory]);
-
-    //this.player1hb.setCollisionCategory(this.staticCategory);
-    //this.player2hb.setCollisionCategory(this.staticCategory);
-
     //this.matterCollision.addOnCollideStart({
     //    objectA: this.npc,
     //    objectB: [this.woodplatform1, this.woodplatform2, this.ground],
@@ -276,156 +232,294 @@ function create() {
 function update() {
 
   this.players.getChildren().forEach((player) => {
-    //const input = players[player.playerId].input;
-    //if (input.left) {
-      //player.setVelocityX(-5);
-    //} else if (input.right) {
-      //player.setVelocityX(5);
-      //console.log('input right');
-    //} else {
-      //player.setVelocityX(0);
-    //}
-    //if (input.up) {
-      //this.physics.velocityFromRotation(player.rotation + 1.5, 200, player.body.acceleration);
-      //player.setVelocityY(-5);
-    //}
-    //if (input.space) {
-      //this.physics.velocityFromRotation(player.rotation + 1.5, 200, player.body.acceleration);
-      //console.log('attack!');
-      //input.space = false;
-    //} //else {
-      //player.setVelocityX(0);
-    //}
     players[player.playerId].x = player.x;
     players[player.playerId].y = player.y;
-    stateMachinesarr[player.playerId].step();
-    //players[player.playerId].rotation = player.rotation;
-  });
-  //this.physics.world.wrap(this.players, 5);
-  //this.stateMachineplayer1.step();
 
-  //stateMachinesarr[1].step();
-  //stateMachinesarr[1].step();
+    stateMachinesarr[player.playerId].step();
+
+    if(player.x>1400 || player.x < -400){
+      //if(playerObject[player.playerId].lifes <= 0){
+      //  player.destroy();
+      //}
+      resetPlayer(this.scores, players[player.playerId]);
+      //this.time.addEvent({
+      //  delay: 1000,
+      //  callback: ()=>{
+      //   playerObject[player.playerId].active = true;
+      //  },
+      //  loop: false
+      //});
+    }
+    else if (player.y>1000 || player.y < -400) {
+      //if(playerObject[player.playerId].lifes <= 0){
+      //  player.destroy();
+      //}
+      resetPlayer(this.scores, players[player.playerId]);
+      //this.time.addEvent({
+      //  delay: 1000,
+      //  callback: ()=>{
+      //   playerObject[player.playerId].active = true;
+      //  },
+      //  loop: false
+      //});
+    }
+  });
   io.emit('playerUpdates', players);
 
 }
+  function resetPlayer(score, playerInfo){
+    if(playerObject[playerInfo.playerId].x>1400)
+    {
+      var explosion_x = 1000;
+      if(playerObject[playerInfo.playerId].y>720)
+      {
+        var explosion_y = 670;
+      }
+      else if (playerObject[playerInfo.playerId].y<0) {
+        var explosion_y = 0;
+      }
+      else{
+        var explosion_y = playerObject[playerInfo.playerId].y;
+      }
+    }
+    else if (playerObject[playerInfo.playerId].x < -400) {
+      var explosion_x = 0;
+      if(playerObject[playerInfo.playerId].y>720)
+      {
+        var explosion_y = 670;
+      }
+      else if (playerObject[playerInfo.playerId].y<0) {
+        var explosion_y = 0;
+      }
+      else{
+        var explosion_y = playerObject[playerInfo.playerId].y;
+      }
+    }
+    else if (playerObject[playerInfo.playerId].y > 1000) {
+      var explosion_y = 670;
+      if(playerObject[playerInfo.playerId].x>1080)
+      {
+        var explosion_x = 1020;
+      }
+      else if (playerObject[playerInfo.playerId].y<0) {
+        var explosion_x = 0;
+      }
+      else{
+        var explosion_x = playerObject[playerInfo.playerId].x;
+      }
+    }
+    else{
+      var explosion_y = 0;
+      if(playerObject[playerInfo.playerId].x>1080)
+      {
+        var explosion_x = 1020;
+      }
+      else if (playerObject[playerInfo.playerId].x<0) {
+        var explosion_x = 0;
+      }
+      else{
+        var explosion_x = playerObject[playerInfo.playerId].x;
+      }
+    }
+    var explosion_info = {
+      x: explosion_x,
+      y: explosion_y
+    }
+    io.emit('resetPlayer', explosion_info);
+    if(playerInfo.team === 1){
+      score.red = score.red +1;
+    }
+    else{
+      score.blue = score.blue +1;
+    }
+    io.emit('updateScore', score);
+
+    playerObject[playerInfo.playerId].lifes = playerObject[playerInfo.playerId].lifes - 1;
+    playerObject[playerInfo.playerId].x = Math.floor(Math.random() * 700) + 50;
+    playerObject[playerInfo.playerId].y = Math.floor(Math.random() * 100) + 100;
+    stateMachinesarr[playerInfo.playerId].transition('respawn');
+    //playerInfo.state = 'respawn';
+    //if(playerObject[playerInfo.playerId].lifes >0){
+    //}
+    //else{
+    //  delete players[playerInfo.playerId];
+    //  delete playerObject[playerInfo.playerId]
+    //}
+    //self.time.addEvent({
+    //  delay: 1000,
+    //  callback: ()=>{
+    //    playerObject[playerInfo.playerId].active = true;
+    //  },
+    //  loop: false
+    //});
+
+  }
+
   function addPlayer(self, playerInfo) {
     //self.matterCollision.removeOnCollideStart({
     //  objectA: [playerObject],
     //  objectB: [hitboxes],
     //  callback: onCollide
     //});
-  //const player = self.matter.add.sprite(playerInfo.x, playerInfo.y, 'player1').setScale(1).setFixedRotation();
-  playerObject[playerInfo.playerId] = self.matter.add.sprite(playerInfo.x, playerInfo.y, 'player1').setScale(1).setFixedRotation().setFriction(0);
+  playerObject[playerInfo.playerId] = self.matter.add.sprite(playerInfo.x, playerInfo.y, 'champsoc_idle').setScale(2).setFixedRotation().setFriction(0);
   playerObject[playerInfo.playerId].setCollisionCategory(self.heroCategory);
   playerObject[playerInfo.playerId].setCollidesWith(self.staticCategory);
-  playerObject[playerInfo.playerId].canJump = true;
+  playerObject[playerInfo.playerId].canJump = 1;
+  playerObject[playerInfo.playerId].dmg = 0;
+  playerObject[playerInfo.playerId].active = true;
+  playerObject[playerInfo.playerId].inAir = true;
+  playerObject[playerInfo.playerId].canDodge = true;
+  playerObject[playerInfo.playerId].jumpCD = false;
+  playerObject[playerInfo.playerId].lifes = 3;
 
   hitboxes[playerInfo.playerId] = self.matter.add.sprite(-10, -10, "woodblock", null, {isStatic: true});
-  //hitboxes[playerInfo.playerId] = self.matter.add.sprite(300, 300, "woodblock");
-  //hitboxes[playerInfo.playerId] = self.matter.add.sprite(-10, -10, "woodblock");
   hitboxes[playerInfo.playerId].setCollisionCategory(this.staticCategory);
-  //self.matterCollision.addOnCollideStart({
-  //  objectA: playerObject,
-  //  objectB: hitboxes,
-  //  callback: eventData => {
-  //    console.log("collision detected");
-      //if(eventData.gameObjectA.team === 1 && eventData.gameObjectB.team === 2){
-      //  console.log("get punched");
-      //  stateMachinesarr[eventData.gameObjectA.playerId].transition('hurt');
-      //  eventData.gameObjectA.setVelocityX(5);
-      //}
-      //else if(eventData.gameObjectA.team === 2 && eventData.gameObjectB.team === 1){
-      //  console.log("get punched");
-      //  stateMachinesarr[eventData.gameObjectA.playerId].transition('hurt');
-      //  eventData.gameObjectA.setVelocityX(5);
-      //}
-  //  }
-  //});
 
-  //var hitbox = self.add.tileSprite(400,200,5*50,50, "woodblock");
-  //hitboxes[playerInfo.playerId] = self.matter.add.gameObject(hitbox,{ isStatic: true , label:"hitbox"});
-  self.matterCollision.addOnCollideStart({
+  self.matterCollision.addOnCollideActive({
       objectA: playerObject[playerInfo.playerId],
       objectB: [self.woodplatform1, self.woodplatform2, self.ground],
       callback: eventData => {
-        playerObject[playerInfo.playerId].canJump = true;
+        playerObject[playerInfo.playerId].canJump = 1;
+        playerObject[playerInfo.playerId].inAir = false;
+        playerObject[playerInfo.playerId].jumpCD = false;
         // eventData.gameObjectB will be the specific enemy that was hit!
       }
     });
-  //self.matterCollision.addOnCollideStart({
-  //    objectA: playerObject[playerInfo.playerId],
-  //    objectB: [self.woodplatform1, self.woodplatform2, self.ground],
-  //    callback: eventData => {
-  //      playerObject[playerInfo.playerId].canJump = true;
-  //      // eventData.gameObjectB will be the specific enemy that was hit!
-  //    }
-  //  });
+    self.matterCollision.addOnCollideEnd({
+        objectA: playerObject[playerInfo.playerId],
+        objectB: [self.woodplatform1, self.woodplatform2, self.ground],
+        callback: eventData => {
+          playerObject[playerInfo.playerId].inAir = true;
+          playerObject[playerInfo.playerId].jumpCD = false;
+          // eventData.gameObjectB will be the specific enemy that was hit!
+        }
+      });
   //player.setDrag(100);
-  //player.setAngularDrag(100);
   //player.setMaxVelocity(200);
-  //player.playerId = playerInfo.playerId;
   playerObject[playerInfo.playerId].playerId = playerInfo.playerId;
-  //self.players.add(player);
   self.players.add(playerObject[playerInfo.playerId]);
   if(self.teamselector%2 === 0){
-    //hitboxteam1[playerInfo.playerId] = self.matter.add.sprite(-10, -10, "invis", null, {isStatic: true});
-    //hitboxteam1[playerInfo.playerId].setCollisionCategory(this.staticCategory);
-    //playerObjectteam1[playerInfo.playerId] = playerObject[playerInfo.playerId];
     playerInfo.team = 1;
-    //hitboxes[playerInfo.playerId].team = 1;
     playerObject[playerInfo.playerId].team = 1;
     self.matterCollision.addOnCollideStart({
       objectA: hitboxes[playerInfo.playerId],
       callback: eventData => {
         const { bodyB, gameObjectB } = eventData;
         if(gameObjectB.team === 2){
-          console.log("Player touched something.");
-          stateMachinesarr[gameObjectB.playerId].transition('hurt');
-          if(gameObjectB.x > playerObject[playerInfo.playerId].x){
-          gameObjectB.setVelocityX(5);
+          if(hitboxes[playerInfo.playerId].state === "attack_left"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityX(-3-0.05*gameObjectB.dmg);
           }
-          else{
-            gameObjectB.setVelocityX(-5);
+          if(hitboxes[playerInfo.playerId].state === "attack_right"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityX(3+0.05*gameObjectB.dmg);
           }
+          if(hitboxes[playerInfo.playerId].state === "attack_up"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityY(-3-0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "attack_down"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityY(3+0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_right"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityX(4+0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_left"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityX(-4-0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_up"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityY(-4-0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_down"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityY(4+0.05*gameObjectB.dmg);
+          }
+
         }
       }
     });
   }
   else{
-    //hitboxteam2[playerInfo.playerId] = self.matter.add.sprite(-10, -10, "invis", null, {isStatic: true});
-    //hitboxteam2[playerInfo.playerId].setCollisionCategory(this.staticCategory);
-    //playerObjectteam2[playerInfo.playerId] = playerObject[playerInfo.playerId];
     playerInfo.team = 2;
-    //hitboxes[playerInfo.playerId].team = 2;
     playerObject[playerInfo.playerId].team = 2;
     self.matterCollision.addOnCollideStart({
       objectA: hitboxes[playerInfo.playerId],
       callback: eventData => {
         const { bodyB, gameObjectB } = eventData;
         if(gameObjectB.team === 1){
-          console.log("Player touched something.");
-          stateMachinesarr[gameObjectB.playerId].transition('hurt');
-          if(gameObjectB.x > playerObject[playerInfo.playerId].x){
-          gameObjectB.setVelocityX(5);
+          if(hitboxes[playerInfo.playerId].state === "attack_left"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityX(-3-0.05*gameObjectB.dmg);
           }
-          else{
-            gameObjectB.setVelocityX(-5);
+          if(hitboxes[playerInfo.playerId].state === "attack_right"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityX(3+0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "attack_up"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityY(-3-0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "attack_down"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 2;
+            gameObjectB.setVelocityY(3+0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_right"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityX(4+0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_left"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityX(-4-0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_up"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityY(-4-0.05*gameObjectB.dmg);
+          }
+          if(hitboxes[playerInfo.playerId].state === "smash_down"){
+            console.log("Player touched something.");
+            stateMachinesarr[gameObjectB.playerId].transition('hurt');
+            gameObjectB.dmg = gameObjectB.dmg + 10;
+            gameObjectB.setVelocityY(4+0.05*gameObjectB.dmg);
           }
         }
       }
     });
   }
   self.teamselector = self.teamselector + 1;
-  //stateMachinesarr[player.playerId] = new StateMachine('idle', {
-  //      idle: new IdleState(),
-  //      move: new MoveState(),
-  //      //attack: new AttackState(),
-  //      //hurt: new HurtState(),
-  //      //swing: new SwingState(),
-  //      //dash: new DashState(),
-  //    }, [self, self.npc,self.npc.input]);
-
 }
 
 function removePlayer(self, playerId) {
@@ -520,12 +614,39 @@ execute(scene, hero, heroObject) {
   //  hero.anims.play(`warrior_idle_anim`, true);
   //}
   // Transition to move if pressing a movement key
+  if (hero.input.space && hero.input.left || hero.input.space && hero.input.right) {
+    this.stateMachine.transition('attack_hor');
+    return;
+  }
+  if (hero.input.space && hero.input.up) {
+    this.stateMachine.transition('attack_up');
+    return;
+  }
+  if (hero.input.space && hero.input.down) {
+    this.stateMachine.transition('attack_down');
+    return;
+  }
+  if(heroObject.canJump>0){
+  if (hero.input.smash && hero.input.left || hero.input.smash && hero.input.right) {
+    this.stateMachine.transition('smash_hor');
+    return;
+  }
+  if (hero.input.smash && hero.input.up) {
+    this.stateMachine.transition('smash_up');
+    return;
+  }
+  if (hero.input.smash && hero.input.down) {
+    this.stateMachine.transition('smash_down');
+    return;
+  }
+  }
+
   if (hero.input.left || hero.input.right || hero.input.up) {
     this.stateMachine.transition('move');
     return;
   }
-  if (hero.input.space) {
-    this.stateMachine.transition('attack');
+  if (hero.input.left && hero.input.dodge && heroObject.canDodge || hero.input.right && hero.input.dodge && heroObject.canDodge || hero.input.up && hero.input.dodge && heroObject.canDodge || hero.input.down && hero.input.dodge && heroObject.canDodge) {
+    this.stateMachine.transition('dodge');
     return;
   }
 }
@@ -534,7 +655,7 @@ execute(scene, hero, heroObject) {
 class MoveState extends State {
 enter(scene, hero, heroObject) {
   console.log("Enter Move State");
-  hero.state = 'move';
+  //hero.state = 'move';
 
 }
 execute(scene, hero, heroObject) {
@@ -546,19 +667,51 @@ execute(scene, hero, heroObject) {
     this.stateMachine.transition('idle');
     return;
   }
-  if (hero.input.space) {
-    this.stateMachine.transition('attack');
+  if (hero.input.space && hero.input.left || hero.input.space && hero.input.right) {
+    this.stateMachine.transition('attack_hor');
     return;
+  }
+  if (hero.input.space && hero.input.up) {
+    this.stateMachine.transition('attack_up');
+    return;
+  }
+  if (hero.input.space && hero.input.down) {
+    this.stateMachine.transition('attack_down');
+    return;
+  }
+  if(heroObject.canJump>0)
+  {
+  if (hero.input.smash && hero.input.left || hero.input.smash && hero.input.right) {
+    this.stateMachine.transition('smash_hor');
+    return;
+  }
+  if (hero.input.smash && hero.input.up) {
+    this.stateMachine.transition('smash_up');
+    return;
+  }
+  if (hero.input.smash && hero.input.down) {
+    this.stateMachine.transition('smash_down');
+    return;
+  }
   }
   //if (space.isDown) {
   //  this.stateMachine.transition('attack');
   //  return;
   //}
   //if (up.isDown && hero.canJump==true) {
-  if (hero.input.up) {
+  if (hero.input.up && heroObject.canJump > 0.5) {
+      if(heroObject.jumpCD === 'false'){
+        heroObject.canJump = heroObject.canJump - 0.4;
+      }
+      heroObject.jumpCD = 'true';
+      scene.time.addEvent({
+        delay: 200,
+        callback: ()=>{
+          heroObject.jumpCD = 'false';
+        },
+        loop: false
+      });
       hero.state = 'jump';
-      if(heroObject.canJump==true) {
-        heroObject.canJump = false;
           //if(hero.label === 'schoolgirl'){
           //hero.anims.play(`player1_jump_anim`, true);
           //}
@@ -566,15 +719,21 @@ execute(scene, hero, heroObject) {
           //  hero.anims.play(`warrior_jump_anim`, true);
           //}
 
-          heroObject.setVelocityY(-5);
-          heroObject.setVelocityX(0);
-      }
+      heroObject.setVelocityY(-10);
+      heroObject.setVelocityX(0);
+
   }
 
   if (hero.input.left) {
     hero.xflipped = true;
-    heroObject.setVelocityX(-5);
+    heroObject.setVelocityX(-10);
     heroObject.flipX = true;
+    if(heroObject.inAir){
+      hero.state = 'jump';
+    }
+    else {
+      hero.state = 'move';
+    }
     //hero.flipX = true;
 
     //if(hero.label === 'schoolgirl'){
@@ -586,8 +745,14 @@ execute(scene, hero, heroObject) {
   }
   else if (hero.input.right) {
     hero.xflipped = false;
-    heroObject.setVelocityX(5);
+    heroObject.setVelocityX(10);
     heroObject.flipX = false;
+    if(heroObject.inAir){
+      hero.state = 'jump';
+    }
+    else {
+      hero.state = 'move';
+    }
     //hero.flipX = false;
 
     //if(hero.label === 'schoolgirl'){
@@ -598,10 +763,103 @@ execute(scene, hero, heroObject) {
     //}
   }
 
+  if (hero.input.left && hero.input.dodge && heroObject.canDodge|| hero.input.right && hero.input.dodge && heroObject.canDodge || hero.input.up && hero.input.dodge && heroObject.canDodge || hero.input.down && hero.input.dodge && heroObject.canDodge) {
+    this.stateMachine.transition('dodge');
+    return;
+  }
+
 
 
 }
 }
+
+class RespawnState extends State {
+enter(scene, hero, heroObject) {
+  if(heroObject.lifes >0){
+    console.log("Enter Respawn State");
+    heroObject.active = false;
+    heroObject.canJump = 1;
+    //heroObject.jumpCD = 'false';
+    scene.time.addEvent({
+      delay: 1000,
+      callback: ()=>{
+        console.log('Leave Respawn State');
+        heroObject.active = true;
+        if (hero.input.left || hero.input.right || hero.input.up) {
+          this.stateMachine.transition('move');
+          return;
+        }
+        else{
+          this.stateMachine.transition('idle');
+        }
+      },
+      loop: false
+    });
+  }
+  else{
+    console.log("Game Over Son");
+    var Id = hero.playerId;
+    // remove player from server
+    removePlayer(scene, Id);
+    // remove this player from our players object
+    delete players[Id];
+    delete stateMachinesarr[Id];
+    delete playerObject[Id];
+    delete hitboxes[Id];
+    // emit a message to all players to remove this player
+    io.emit('disconnect', Id);
+    return;
+  }
+}
+execute(scene, hero, heroObject) {
+  // Transition to idle if not pressing movement keys
+  if (!(hero.input.left || hero.input.right || hero.input.up)) {
+    hero.state = 'dodge_idle';
+  }
+
+  if (hero.input.up && heroObject.canJump > 0.5) {
+      if(heroObject.jumpCD === 'false'){
+        heroObject.canJump = heroObject.canJump - 0.4;
+      }
+      heroObject.jumpCD = 'true';
+      scene.time.addEvent({
+        delay: 200,
+        callback: ()=>{
+          heroObject.jumpCD = 'false';
+        },
+        loop: false
+      });
+      hero.state = 'dodge_jump';
+      heroObject.setVelocityY(-10);
+      heroObject.setVelocityX(0);
+
+  }
+  if (hero.input.left) {
+    hero.xflipped = true;
+    heroObject.setVelocityX(-10);
+    heroObject.flipX = true;
+    if(heroObject.inAir){
+      hero.state = 'dodge_jump';
+    }
+    else {
+      hero.state = 'dodge_move';
+    }
+  }
+  else if (hero.input.right) {
+    hero.xflipped = false;
+    heroObject.setVelocityX(10);
+    heroObject.flipX = false;
+    if(heroObject.inAir){
+      hero.state = 'dodge_jump';
+    }
+    else {
+      hero.state = 'dodge_move';
+    }
+
+  }
+}
+}
+
 
 class HurtState extends State {
 
@@ -609,6 +867,8 @@ enter(scene, hero, heroObject) {
   console.log("Enter Hurt State");
   hitboxes[hero.playerId].setCollisionCategory(null);
   hero.state = 'hurt';
+  heroObject.setBounce(1+0.001*heroObject.dmg);
+  heroObject.active = false;
   //hitbox.setCollisionCategory(null);
   //if(hero.label === 'schoolgirl'){
   //  hero.anims.play(`player1_death_anim`, true);
@@ -617,9 +877,18 @@ enter(scene, hero, heroObject) {
   //  hero.anims.play(`warrior_death_anim`, true);
   //}
   scene.time.addEvent({
-    delay: 500,
+    delay: 400+5*heroObject.dmg,
+    callback: ()=>{
+      heroObject.active = true;
+    },
+    loop: false
+  })
+
+  scene.time.addEvent({
+    delay: 400+5*heroObject.dmg,
     callback: ()=>{
       console.log('Leave Hurt State');
+      heroObject.setBounce(0);
       if (hero.input.left || hero.input.right || hero.input.up) {
         this.stateMachine.transition('move');
         return;
@@ -634,6 +903,88 @@ enter(scene, hero, heroObject) {
   //    console.log('Leave Hurt State');
   //    this.stateMachine.transition('idle');
   //});
+
+}
+
+execute(scene, hero, heroObject) {
+
+
+}
+}
+
+class DodgeState extends State {
+
+enter(scene, hero, heroObject) {
+  console.log("Enter Dodge State");
+  hitboxes[hero.playerId].setCollisionCategory(null);
+  heroObject.canDodge = false;
+
+  if (hero.input.up) {
+      hero.state = 'dodge_jump';
+
+      heroObject.setVelocityY(-12);
+      heroObject.setVelocityX(0);
+
+  }
+
+  if (hero.input.left) {
+    hero.xflipped = true;
+    heroObject.setVelocityX(-20);
+    heroObject.flipX = true;
+    if(heroObject.inAir){
+      hero.state = 'dodge_jump';
+    }
+    else {
+      hero.state = 'dodge_move';
+    }
+  }
+  else if (hero.input.right) {
+    hero.xflipped = false;
+    heroObject.setVelocityX(20);
+    heroObject.flipX = false;
+    if(heroObject.inAir){
+      hero.state = 'dodge_jump';
+    }
+    else {
+      hero.state = 'dodge_move';
+    }
+  }
+  else if (hero.input.down) {
+    hero.xflipped = false;
+    heroObject.setVelocityY(10);
+    heroObject.flipX = false;
+    if(heroObject.inAir){
+      hero.state = 'dodge_jump';
+    }
+    else {
+      hero.state = 'dodge_idle';
+    }
+  }
+
+  scene.time.addEvent({
+    delay: 1000,
+    callback: ()=>{
+      heroObject.canDodge = true;
+    },
+    loop: false
+  })
+  scene.time.addEvent({
+    delay: 100,
+    callback: ()=>{
+      console.log('Leave Dodge State');
+      heroObject.setVelocityX(0);
+      heroObject.setVelocityY(0);
+      heroObject.active = true;
+      if (hero.input.left || hero.input.right || hero.input.up) {
+        this.stateMachine.transition('move');
+        return;
+      }
+      else{
+        this.stateMachine.transition('idle');
+      }
+    },
+    loop: false
+  });
 
 }
 
@@ -737,6 +1088,456 @@ schoolgirl_attack(scene, hero, heroObject){
 }
 
 
+
+class AttackHorState extends State {
+
+enter(scene, hero, heroObject) {
+    hero.input.space = false;
+    //heroObject.canJump = 0;
+    console.log("Enter Horizontal Attack State");
+    //heroObject.setVelocityY(0);
+    //heroObject.setVelocityX(0);
+    //heroObject.body.ignoreGravity = true;
+    //hero.state = 'horattack';
+    this.hasan_attack_hor(scene, hero, heroObject);
+    //if(hero.label === 'schoolgirl'){
+    //  hero.anims.play(`player1_attack_anim`, true);
+    //  this.schoolgirl_attack(scene,hero,category,hitbox);
+    //}
+    //else if(hero.label === 'warrior'){
+    //  hero.anims.play(`warrior_attack_anim`, true);
+    //  this.warrior_attack(scene,hero,category,hitbox);
+    //}
+    scene.time.addEvent({
+      delay: 350,
+      callback: ()=>{
+        heroObject.body.ignoreGravity = false;
+        if (hero.input.left || hero.input.right || hero.input.up) {
+          this.stateMachine.transition('move');
+          return;
+        }
+        else{
+          this.stateMachine.transition('idle');
+        }
+        console.log("finished attack");
+      },
+      loop: false
+    });
+}
+
+execute(scene, hero, heroObject) {
+
+}
+
+hasan_attack_hor(scene, hero, heroObject){
+  if(hero.input.right){
+    hero.xflipped = false;
+    heroObject.flipX = false;
+    hitboxes[hero.playerId].state = "attack_right";
+    hero.state = 'horattack_right';
+    //var newBody =   scene.matter.bodies.rectangle(heroObject.x-10,heroObject.y+1,22,10,{isStatic: true,isSensor: true});
+    var newBody =   scene.matter.bodies.rectangle(heroObject.x+10,heroObject.y+1,22,10,{isStatic: true,isSensor: true});
+  }
+  else{
+    hero.xflipped = true;
+    heroObject.flipX = true;
+    hitboxes[hero.playerId].state = "attack_left";
+    hero.state = 'horattack_left';
+    var newBody =  scene.matter.bodies.rectangle(heroObject.x-10,heroObject.y+1,22,10,{isStatic: true,isSensor: true});
+  }
+  hitboxes[hero.playerId].setExistingBody(newBody, true);
+  hitboxes[hero.playerId].setCollisionCategory(scene.staticCategory);
+  if(heroObject.flipX == true){
+    var tween = scene.tweens.add({
+      targets: hitboxes[hero.playerId],
+      x: heroObject.x-20,
+      ease: 'Power1',
+      duration: 350,
+      repeat:0,
+      onComplete: function(){
+        hitboxes[hero.playerId].setCollisionCategory(null);
+      },
+      callbackScope: this
+    });
+  }
+  else{
+    var tween = scene.tweens.add({
+      targets: hitboxes[hero.playerId],
+      x: heroObject.x+20,
+      ease: 'Power1',
+      duration: 350,
+      repeat:0,
+      onComplete: function(){
+        hitboxes[hero.playerId].setCollisionCategory(null);
+      },
+      callbackScope: this
+    });
+  }
+}
+
+}
+
+class AttackUpState extends State {
+
+enter(scene, hero, heroObject) {
+    hero.input.space = false;
+    console.log("Enter Up Attack State");
+    //heroObject.canJump = 0;
+    //heroObject.setVelocityY(0);
+    //heroObject.setVelocityX(0);
+    //heroObject.body.ignoreGravity = true;
+    hero.state = 'attack_up';
+    this.hasan_attack_up(scene, hero, heroObject);
+    //if(hero.label === 'schoolgirl'){
+    //  hero.anims.play(`player1_attack_anim`, true);
+    //  this.schoolgirl_attack(scene,hero,category,hitbox);
+    //}
+    //else if(hero.label === 'warrior'){
+    //  hero.anims.play(`warrior_attack_anim`, true);
+    //  this.warrior_attack(scene,hero,category,hitbox);
+    //}
+    scene.time.addEvent({
+      delay: 350,
+      callback: ()=>{
+        heroObject.body.ignoreGravity = false;
+        if (hero.input.left || hero.input.right || hero.input.up) {
+          this.stateMachine.transition('move');
+          return;
+        }
+        else{
+          this.stateMachine.transition('idle');
+        }
+        console.log("finished attack");
+      },
+      loop: false
+    });
+}
+
+execute(scene, hero, heroObject) {
+
+}
+
+hasan_attack_up(scene, hero, heroObject){
+  hitboxes[hero.playerId].state = "attack_up";
+  var newBody =   scene.matter.bodies.rectangle(heroObject.x,heroObject.y-5,15,22,{isStatic: true,isSensor: true});
+  hitboxes[hero.playerId].setExistingBody(newBody, true);
+  hitboxes[hero.playerId].setCollisionCategory(scene.staticCategory);
+  var tween = scene.tweens.add({
+    targets: hitboxes[hero.playerId],
+    y: heroObject.y-35,
+    ease: 'Power1',
+    duration: 350,
+    repeat:0,
+    onComplete: function(){
+      hitboxes[hero.playerId].setCollisionCategory(null);
+    },
+    callbackScope: this
+  });
+
+}
+
+}
+
+
+class AttackDownState extends State {
+
+enter(scene, hero, heroObject) {
+    hero.input.space = false;
+    console.log("Enter Down Attack State");
+    //heroObject.canJump = 0;
+    //heroObject.setVelocityY(0);
+    //heroObject.setVelocityX(0);
+    //heroObject.body.ignoreGravity = true;
+    hero.state = 'attack_down';
+    this.hasan_attack_down(scene, hero, heroObject);
+    //if(hero.label === 'schoolgirl'){
+    //  hero.anims.play(`player1_attack_anim`, true);
+    //  this.schoolgirl_attack(scene,hero,category,hitbox);
+    //}
+    //else if(hero.label === 'warrior'){
+    //  hero.anims.play(`warrior_attack_anim`, true);
+    //  this.warrior_attack(scene,hero,category,hitbox);
+    //}
+    scene.time.addEvent({
+      delay: 350,
+      callback: ()=>{
+        heroObject.body.ignoreGravity = false;
+        console.log("finished attack");
+        if (hero.input.left || hero.input.right || hero.input.up) {
+          this.stateMachine.transition('move');
+          return;
+        }
+        else{
+          this.stateMachine.transition('idle');
+        }
+      },
+      loop: false
+    });
+}
+
+execute(scene, hero, heroObject) {
+
+}
+
+hasan_attack_down(scene, hero, heroObject){
+  hitboxes[hero.playerId].state = "attack_down";
+  if(heroObject.flipX){
+    var newBody =   scene.matter.bodies.rectangle(heroObject.x-8,heroObject.y+5,15,22,{isStatic: true,isSensor: true});
+  }
+  else {
+    var newBody =   scene.matter.bodies.rectangle(heroObject.x+8,heroObject.y+5,15,22,{isStatic: true,isSensor: true});
+  }
+  hitboxes[hero.playerId].setExistingBody(newBody, true);
+  hitboxes[hero.playerId].setCollisionCategory(scene.staticCategory);
+  var tween = scene.tweens.add({
+    targets: hitboxes[hero.playerId],
+    y: heroObject.y+30,
+    ease: 'Power1',
+    duration: 350,
+    repeat:0,
+    onComplete: function(){
+      hitboxes[hero.playerId].setCollisionCategory(null);
+    },
+    callbackScope: this
+  });
+
+}
+
+}
+
+
+class SmashHorState extends State {
+
+enter(scene, hero, heroObject) {
+    hero.input.smash = false;
+    heroObject.canJump = 0;
+    console.log("Enter Horizontal Smash State");
+    heroObject.setVelocityY(0);
+    heroObject.setVelocityX(0);
+    heroObject.body.ignoreGravity = true;
+    //hero.state = 'horattack';
+    this.hasan_smash_hor(scene, hero, heroObject);
+    //if(hero.label === 'schoolgirl'){
+    //  hero.anims.play(`player1_attack_anim`, true);
+    //  this.schoolgirl_attack(scene,hero,category,hitbox);
+    //}
+    //else if(hero.label === 'warrior'){
+    //  hero.anims.play(`warrior_attack_anim`, true);
+    //  this.warrior_attack(scene,hero,category,hitbox);
+    //}
+    scene.time.addEvent({
+      delay: 350,
+      callback: ()=>{
+        heroObject.body.ignoreGravity = false;
+        if (hero.input.left || hero.input.right || hero.input.up) {
+          this.stateMachine.transition('move');
+          return;
+        }
+        else{
+          this.stateMachine.transition('idle');
+        }
+        console.log("finished attack");
+      },
+      loop: false
+    });
+}
+
+execute(scene, hero, heroObject) {
+
+}
+
+hasan_smash_hor(scene, hero, heroObject){
+  if(hero.input.right){
+    hero.xflipped = false;
+    heroObject.flipX = false;
+    hitboxes[hero.playerId].state = "smash_right";
+    hero.state = 'horsmash_right';
+    scene.time.addEvent({
+              delay: 200,
+                callback: ()=>{
+                  var newBody =   scene.matter.bodies.polygon(heroObject.x+40,heroObject.y,3,40,{isStatic: true,isSensor: true});
+                  hitboxes[hero.playerId].setExistingBody(newBody, true);
+                  hitboxes[hero.playerId].setCollisionCategory(scene.staticCategory);
+                  scene.time.addEvent({
+                    delay: 100,
+                      callback: ()=>{
+                        hitboxes[hero.playerId].setCollisionCategory(null);
+                      },
+                      loop: false
+                  });
+                },
+                loop: false
+    });
+  }
+  else{
+    hero.xflipped = true;
+    heroObject.flipX = true;
+    hitboxes[hero.playerId].state = "attack_left";
+    hero.state = 'horsmash_left';
+    scene.time.addEvent({
+              delay: 200,
+                callback: ()=>{
+                  var newBody =  scene.matter.bodies.rectangle(heroObject.x-40,heroObject.y,3,40,{isStatic: true,isSensor: true});
+                  hitboxes[hero.playerId].setExistingBody(newBody, true);
+                  hitboxes[hero.playerId].setAngle(180);
+                  hitboxes[hero.playerId].setCollisionCategory(scene.staticCategory);
+                  scene.time.addEvent({
+                    delay: 100,
+                      callback: ()=>{
+                        hitboxes[hero.playerId].setCollisionCategory(null);
+                      },
+                      loop: false
+                  });
+                },
+                loop: false
+    });
+  }
+  scene.time.addEvent({
+            delay: 200,
+              callback: ()=>{
+
+              },
+              loop: false
+  });
+
+}
+
+}
+
+class SmashUpState extends State {
+
+enter(scene, hero, heroObject) {
+    hero.input.space = false;
+    console.log("Enter Up Smash State");
+    heroObject.canJump = 0;
+    heroObject.setVelocityY(0);
+    heroObject.setVelocityX(0);
+    heroObject.body.ignoreGravity = true;
+    hero.state = 'smash_up';
+    this.hasan_smash_up(scene, hero, heroObject);
+    //if(hero.label === 'schoolgirl'){
+    //  hero.anims.play(`player1_attack_anim`, true);
+    //  this.schoolgirl_attack(scene,hero,category,hitbox);
+    //}
+    //else if(hero.label === 'warrior'){
+    //  hero.anims.play(`warrior_attack_anim`, true);
+    //  this.warrior_attack(scene,hero,category,hitbox);
+    //}
+    scene.time.addEvent({
+      delay: 350,
+      callback: ()=>{
+        heroObject.body.ignoreGravity = false;
+        if (hero.input.left || hero.input.right || hero.input.up) {
+          this.stateMachine.transition('move');
+          return;
+        }
+        else{
+          this.stateMachine.transition('idle');
+        }
+        console.log("finished attack");
+      },
+      loop: false
+    });
+}
+
+execute(scene, hero, heroObject) {
+
+}
+
+hasan_smash_up(scene, hero, heroObject){
+  hitboxes[hero.playerId].state = "smash_up";
+  if(heroObject.flipX){
+    var newBody =   scene.matter.bodies.rectangle(heroObject.x+5,heroObject.y,20,35,{isStatic: true,isSensor: true});
+  }
+  else {
+    var newBody =   scene.matter.bodies.rectangle(heroObject.x-5,heroObject.y,20,35,{isStatic: true,isSensor: true});
+  }
+  hitboxes[hero.playerId].setExistingBody(newBody, true);
+  hitboxes[hero.playerId].setCollisionCategory(scene.staticCategory);
+  var tween = scene.tweens.add({
+    targets: hitboxes[hero.playerId],
+    y: heroObject.y-40,
+    ease: 'Power1',
+    duration: 200,
+    repeat:0,
+    onComplete: function(){
+      hitboxes[hero.playerId].setCollisionCategory(null);
+    },
+    callbackScope: this
+  });
+
+}
+
+}
+
+class SmashDownState extends State {
+
+enter(scene, hero, heroObject) {
+    hero.input.space = false;
+    console.log("Enter Down Smash State");
+    //heroObject.canJump = 0;
+    heroObject.setVelocityY(0);
+    heroObject.setVelocityX(0);
+    heroObject.body.ignoreGravity = true;
+    hero.state = 'smash_down';
+    this.hasan_smash_down(scene, hero, heroObject);
+    //if(hero.label === 'schoolgirl'){
+    //  hero.anims.play(`player1_attack_anim`, true);
+    //  this.schoolgirl_attack(scene,hero,category,hitbox);
+    //}
+    //else if(hero.label === 'warrior'){
+    //  hero.anims.play(`warrior_attack_anim`, true);
+    //  this.warrior_attack(scene,hero,category,hitbox);
+    //}
+    scene.time.addEvent({
+      delay: 350,
+      callback: ()=>{
+        heroObject.setVelocityY(0);
+        heroObject.setVelocityX(0);
+        heroObject.body.ignoreGravity = false;
+        console.log("finished attack");
+        if (hero.input.left || hero.input.right || hero.input.up) {
+          this.stateMachine.transition('move');
+          return;
+        }
+        else{
+          this.stateMachine.transition('idle');
+        }
+      },
+      loop: false
+    });
+}
+
+execute(scene, hero, heroObject) {
+
+}
+
+hasan_smash_down(scene, hero, heroObject){
+  hitboxes[hero.playerId].state = "smash_down";
+  if(heroObject.flipX){
+    var newBody =   scene.matter.bodies.rectangle(heroObject.x-10,heroObject.y,55,30,{isStatic: false,isSensor: true});
+  }
+  else {
+    var newBody =   scene.matter.bodies.rectangle(heroObject.x+10,heroObject.y,55,30,{isStatic: false,isSensor: true});
+  }
+  hitboxes[hero.playerId].setExistingBody(newBody, true);
+  hitboxes[hero.playerId].setCollisionCategory(scene.staticCategory);
+  var hbconstraint = scene.matter.add.constraint(hitboxes[hero.playerId], heroObject, 2, 0.9);
+
+  scene.time.addEvent({
+          delay: 350,
+          callback: ()=>{
+            hitboxes[hero.playerId].setCollisionCategory(null);
+            scene.matter.world.removeConstraint(hbconstraint);
+          },
+          loop: false
+        })
+        heroObject.setVelocityY(15);
+        hitboxes[hero.playerId].setVelocityY(15);
+
+}
+
+}
 
 
 const game = new Phaser.Game(config);
